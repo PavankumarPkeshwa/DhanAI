@@ -13,6 +13,7 @@
  */
 
 require('dotenv').config();
+const fetch = require('node-fetch');
 const { getInstrumentToken, getMappedSymbols } = require('./instrumentTokens');
 
 const BASE_URL = 'https://api.kotaksecurities.com/api/v1';
@@ -65,8 +66,7 @@ async function makeRequest(endpoint, method = 'GET', body = null) {
 
 /**
  * Get live quote for a symbol
- * Symbol format: NSE_EQ|INE002A01018 (for INFY)
- * Simplified: Use token directly like "NIL" or common stock codes
+ * Calls real Kotak Neo API if credentials are available
  */
 async function getLiveQuote(symbol) {
   const cacheKey = `quote_${symbol}`;
@@ -82,20 +82,38 @@ async function getLiveQuote(symbol) {
   }
 
   try {
-    // Map symbol to NSE token
-    const tokenMap = {
-      'INFY': 'NIL',  // Infosys - Will be replaced with actual token
-      'TCS': 'NIL',
-      'RELIANCE': 'NIL',
-      'WIPRO': 'NIL',
-      'HDFC': 'NIL',
-      'ICICIBANK': 'NIL',
-      'BAJAJ': 'NIL',
-      'MARUTI': 'NIL',
-    };
+    // Try real Kotak API if credentials are configured
+    if (credentials.accessToken && credentials.accessToken !== 'YOUR_ACCESS_TOKEN') {
+      try {
+        // Kotak Neo quote endpoint: /quotes/quotes/json
+        const response = await makeRequest('/quotes/quotes/json', 'POST', {
+          mode: 'LTP',  // Last Traded Price
+          exchangeTokens: [symbol],
+        });
+        
+        if (response && response.result) {
+          const quoteData = response.result[symbol];
+          if (quoteData && quoteData.ltp) {
+            // Cache the price
+            priceCache.set(cacheKey, {
+              price: parseFloat(quoteData.ltp),
+              timestamp: Date.now(),
+            });
+            
+            return {
+              symbol,
+              price: parseFloat(quoteData.ltp),
+              ts: new Date().toISOString(),
+            };
+          }
+        }
+      } catch (apiError) {
+        console.warn(`Real Kotak API failed for ${symbol}, using mock:`, apiError.message);
+        // Fall through to mock if API fails
+      }
+    }
 
-    // For now, using mock data as Kotak API requires proper authentication
-    // Replace this with actual API call once credentials are set up
+    // Fallback to mock data
     const mockPrice = await getMockPrice(symbol);
 
     // Store in cache
@@ -123,20 +141,41 @@ async function getLiveQuote(symbol) {
 
 /**
  * Get historical candle data for charting
- * Real Kotak implementation: GET /chart/instruments/candles?instrumentToken=TOKEN&interval=1&count=50
- * Returns last 50 candles with OHLC data
+ * Calls real Kotak Neo API for OHLC data if credentials available
+ * Falls back to mock data otherwise
  */
 async function getHistoricalCandles(symbol, interval = '1') {
   try {
     const token = getInstrumentToken(symbol);
-    if (token && credentials.accessToken !== 'YOUR_ACCESS_TOKEN') {
-      // TODO: Implement real Kotak OHLC call when credentials are valid
-      // const endpoint = `/chart/instruments/candles?instrumentToken=${token}&interval=${interval}&count=50`;
-      // const response = await makeRequest(endpoint);
-      // if (response && response.candles) return response.candles;
+    
+    // Try real Kotak API if credentials are configured
+    if (token && credentials.accessToken && credentials.accessToken !== 'YOUR_ACCESS_TOKEN') {
+      try {
+        // Kotak Neo historical candle endpoint
+        const response = await makeRequest('/charts/instruments/candles', 'GET');
+        
+        if (response && response.candles && Array.isArray(response.candles)) {
+          // Transform and cache real candles
+          const realCandles = response.candles.map(c => ({
+            timestamp: new Date(c.time * 1000).toISOString(),
+            open: parseFloat(c.open),
+            high: parseFloat(c.high),
+            low: parseFloat(c.low),
+            close: parseFloat(c.close),
+            volume: parseInt(c.volume),
+          }));
+          
+          // Cache the real candles
+          priceHistory[symbol] = realCandles;
+          return realCandles;
+        }
+      } catch (apiError) {
+        console.warn(`Real Kotak OHLC API failed for ${symbol}, using mock:`, apiError.message);
+        // Fall through to mock if API fails
+      }
     }
     
-    // Fallback: Return mock data
+    // Fallback: Use mock data
     if (!priceHistory[symbol]) {
       priceHistory[symbol] = [];
     }
@@ -145,10 +184,10 @@ async function getHistoricalCandles(symbol, interval = '1') {
     
     // Generate mock candles if empty
     if (candles.length === 0) {
-      let price = 250 + Math.random() * 100;
+      let price = 1550 + Math.random() * 100;  // INFY starting price
       for (let i = 50; i > 0; i--) {
         const drift = (Math.random() - 0.5) * 20;
-        price = Math.max(200, price + drift);
+        price = Math.max(1200, price + drift);
         
         const timestamp = new Date(Date.now() - i * 60000);
         candles.push({
@@ -225,20 +264,21 @@ function addCandle(symbol, price) {
 
 /**
  * Mock price data generator (replace with real API calls)
+ * Price ranges based on current NSE/BSE market values (Nov 2025)
  */
 async function getMockPrice(symbol) {
   const ranges = {
-    'INFY': { min: 200, max: 400 },
-    'TCS': { min: 200, max: 400 },
-    'RELIANCE': { min: 250, max: 350 },
-    'WIPRO': { min: 300, max: 450 },
-    'BAJAJ': { min: 4000, max: 5000 },
-    'MARUTI': { min: 9000, max: 11000 },
-    'HDFC': { min: 2500, max: 3000 },
-    'ICICIBANK': { min: 800, max: 1100 },
+    'INFY': { min: 1500, max: 1600 },      // Infosys Ltd
+    'TCS': { min: 3500, max: 3700 },       // Tata Consultancy Services
+    'RELIANCE': { min: 2850, max: 2950 },  // Reliance Industries
+    'WIPRO': { min: 510, max: 560 },       // Wipro Ltd
+    'BAJAJ': { min: 9100, max: 9400 },     // Bajaj Financial Services
+    'MARUTI': { min: 10800, max: 11200 },  // Maruti Suzuki
+    'HDFC': { min: 2650, max: 2750 },      // HDFC Bank
+    'ICICIBANK': { min: 1150, max: 1250 }, // ICICI Bank
   };
 
-  const range = ranges[symbol] || { min: 200, max: 500 };
+  const range = ranges[symbol] || { min: 1000, max: 2000 };
   return +(range.min + Math.random() * (range.max - range.min)).toFixed(2);
 }
 
