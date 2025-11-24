@@ -1,0 +1,7 @@
+nohup: ignoring input
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
+🕒 Scheduler started (every 5s) …
+✅ Server running on http://localhost:5000
+🔌 Client connected to socket: QgKXfVqkpOLPtn9pAAAB
+🔌 Client connected to socket: TFsdKNuQyD2OVZmcAAAD
+🔌 Client disconnected: QgKXfVqkpOLPtn9pAAAB

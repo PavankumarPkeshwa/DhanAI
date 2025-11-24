@@ -181,6 +181,7 @@ function addCandle(symbol, price) {
   const now = new Date();
   
   if (candles.length === 0) {
+    // First candle
     candles.push({
       timestamp: now.toISOString(),
       open: price,
@@ -204,11 +205,15 @@ function addCandle(symbol, price) {
         volume: 1,
       });
     } else {
-      // Update current candle
+      // Update current candle - ensure all values are initialized
+      if (!lastCandle.open) lastCandle.open = price;
+      if (!lastCandle.high) lastCandle.high = price;
+      if (!lastCandle.low) lastCandle.low = price;
+      
       lastCandle.high = Math.max(lastCandle.high, price);
       lastCandle.low = Math.min(lastCandle.low, price);
       lastCandle.close = price;
-      lastCandle.volume += 1;
+      lastCandle.volume = (lastCandle.volume || 0) + 1;
     }
   }
 
