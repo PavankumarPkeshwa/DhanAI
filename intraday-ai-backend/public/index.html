@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DhanAI - AI Trading Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- TradingView Lightweight Charts -->
+    <script src="https://unpkg.com/lightweight-charts@4/dist/lightweight-charts.standalone.production.js"></script>
+    <!-- Socket.IO client -->
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <h1>💰 DhanAI</h1>
+                <p>AI-Powered Intraday Trading (NSE/BSE)</p>
+            </div>
+            <div class="status-badge" id="statusBadge">
+                <span class="status-dot"></span>
+                Connected
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <main class="main-grid">
+            <!-- Left Sidebar: Wallet Info -->
+            <aside class="sidebar">
+                <div class="card wallet-card">
+                    <h2>💼 Wallet</h2>
+                    <div class="wallet-item">
+                        <span>Balance</span>
+                        <span class="amount" id="balance">$0.00</span>
+                    </div>
+                    <div class="wallet-item">
+                        <span>P&L</span>
+                        <span class="amount profit" id="pnl">+$0.00</span>
+                    </div>
+                    <div class="wallet-item">
+                        <span>Positions</span>
+                        <span class="badge" id="positionCount">0</span>
+                    </div>
+                </div>
+
+                <!-- Auto Trading Controls -->
+                <div class="card controls-card">
+                    <h3>🤖 Auto Trading</h3>
+                    <div class="toggle-group">
+                        <button class="btn btn-primary" id="startAutoBtn">Start Auto Trading</button>
+                        <button class="btn btn-secondary" id="stopAutoBtn" disabled>Stop Auto Trading</button>
+                    </div>
+                    <div class="status-info" id="autoStatus">Status: Inactive</div>
+                </div>
+
+                <!-- Manual Trade Form -->
+                <div class="card trade-form-card">
+                    <h3>📊 Manual Trade</h3>
+                    <form id="tradeForm">
+                        <div class="form-group">
+                            <label>Symbol</label>
+                            <input type="text" id="symbol" placeholder="e.g., INFY, TCS, RELIANCE" maxlength="10">
+                        </div>
+                        <div class="form-group">
+                            <label>Side</label>
+                            <div class="radio-group">
+                                <label><input type="radio" name="side" value="BUY" checked> Buy</label>
+                                <label><input type="radio" name="side" value="SELL"> Sell</label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Quantity</label>
+                            <input type="number" id="quantity" placeholder="1" min="1" value="1">
+                        </div>
+                        <button type="submit" class="btn btn-success">Place Trade</button>
+                    </form>
+                </div>
+
+                <!-- Reset Button -->
+                <button class="btn btn-danger btn-block" id="resetBtn">Reset All Trades</button>
+            </aside>
+
+            <!-- Center: Charts & Stats -->
+            <section class="center-section">
+                <!-- Live Chart -->
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h2>📊 Live Price Chart</h2>
+                        <select id="chartSymbol" class="symbol-selector">
+                            <option value="INFY">INFY (Infosys)</option>
+                            <option value="TCS">TCS (Tata Consultancy)</option>
+                            <option value="RELIANCE">RELIANCE (Reliance Industries)</option>
+                            <option value="WIPRO">WIPRO (Wipro)</option>
+                            <option value="HDFC">HDFC (HDFC Bank)</option>
+                            <option value="ICICIBANK">ICICIBANK (ICICI Bank)</option>
+                            <option value="BAJAJ">BAJAJ (Bajaj Auto)</option>
+                            <option value="MARUTI">MARUTI (Maruti Suzuki)</option>
+                        </select>
+                    </div>
+                    <div class="chart-container" id="chartContainer"></div>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h4>Total Trades</h4>
+                        <p class="stat-value" id="totalTrades">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Win Rate</h4>
+                        <p class="stat-value" id="winRate">0%</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Avg Profit/Trade</h4>
+                        <p class="stat-value" id="avgProfit">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Max Drawdown</h4>
+                        <p class="stat-value" id="maxDrawdown">0%</p>
+                    </div>
+                </div>
+
+                <!-- Trades Table -->
+                <div class="card trades-table-card">
+                    <div class="card-header">
+                        <h2>📈 Trade History</h2>
+                        <button class="btn btn-small" id="refreshBtn">🔄 Refresh</button>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="trades-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Symbol</th>
+                                    <th>Side</th>
+                                    <th>Qty</th>
+                                    <th>Price</th>
+                                    <th>Total</th>
+                                    <th>Source</th>
+                                    <th>P&L</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tradesBody">
+                                <tr class="empty-row">
+                                    <td colspan="8">No trades yet. Start auto trading or place a manual trade.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Sidebar: Activity Log -->
+            <aside class="right-sidebar">
+                <div class="card activity-card">
+                    <h3>📋 Activity Log</h3>
+                    <div class="activity-log" id="activityLog">
+                        <div class="activity-item">
+                            <span class="time">Now</span>
+                            <span class="message">Dashboard initialized</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 const Wallet = require("../models/Wallet");
 const Trade = require("../models/Trade");
-const { placeOrder } = require("../config/angelApi");
+const { placeOrder } = require("../config/kotakNeoApi");
 
 async function executeTrade({ symbol, side, quantity, price, source }) {
   const wallet = Wallet.get();
@@ -21,7 +21,7 @@ async function executeTrade({ symbol, side, quantity, price, source }) {
   // Update positions
   Wallet.applyTrade({ symbol, side, quantity, price });
 
-  // Simulate placing order (replace with real API in production)
+  // Place order via Kotak Neo API
   const ack = await placeOrder({ symbol, side, quantity, price });
 
   // Log trade
